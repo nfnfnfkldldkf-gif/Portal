@@ -1,0 +1,220 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Debris = game:GetService("Debris")
+
+local plr = Players.LocalPlayer
+local mouse = plr:GetMouse()
+
+local Portal1, Portal2 = nil, nil
+local GreenColor = Color3.fromRGB(0, 255, 80)
+
+local function PlaySound(id, volume, parent)
+	local sound = Instance.new("Sound")
+	sound.SoundId = "rbxassetid://" .. id
+	sound.Volume = volume or 1
+	sound.Parent = parent or workspace
+	sound:Play()
+	Debris:AddItem(sound, 3)
+end
+
+local tool = Instance.new("Tool")
+tool.Name = "Rick's Portal Gun"
+tool.RequiresHandle = true
+tool.CanBeDropped = false
+
+local handle = Instance.new("Part")
+handle.Name = "Handle"
+handle.Size = Vector3.new(0.7, 1.1, 1.8)
+handle.Color = Color3.fromRGB(90, 90, 95)
+handle.Material = Enum.Material.Metal
+handle.Parent = tool
+
+local top = Instance.new("Part")
+top.Size = Vector3.new(0.75, 0.4, 1.3)
+top.Color = Color3.fromRGB(70, 70, 75)
+top.Material = Enum.Material.Metal
+top.CanCollide = false
+top.Parent = tool
+
+local weld1 = Instance.new("Weld")
+weld1.Part0 = handle
+weld1.Part1 = top
+weld1.C0 = CFrame.new(0, 0.65, -0.2)
+weld1.Parent = handle
+
+local barrel = Instance.new("Part")
+barrel.Size = Vector3.new(0.45, 0.45, 1.6)
+barrel.Color = Color3.fromRGB(50, 50, 55)
+barrel.Material = Enum.Material.Metal
+barrel.CanCollide = false
+barrel.Parent = tool
+
+local weld2 = Instance.new("Weld")
+weld2.Part0 = handle
+weld2.Part1 = barrel
+weld2.C0 = CFrame.new(0, 0.15, -1.5)
+weld2.Parent = handle
+
+local indicator = Instance.new("Part")
+indicator.Size = Vector3.new(0.25, 0.25, 0.25)
+indicator.Color = GreenColor
+indicator.Material = Enum.Material.Neon
+indicator.CanCollide = false
+indicator.Parent = tool
+
+local weld3 = Instance.new("Weld")
+weld3.Part0 = handle
+weld3.Part1 = indicator
+weld3.C0 = CFrame.new(0, 0.4, 0.6)
+weld3.Parent = handle
+
+local light = Instance.new("PointLight")
+light.Color = GreenColor
+light.Brightness = 2
+light.Range = 8
+light.Parent = barrel
+
+tool.Parent = plr.Backpack
+
+local function CreatePortal(hit, name)
+	if not hit then return end
+
+	local portal = Instance.new("Part")
+	portal.Name = name
+	portal.Size = Vector3.new(5.5, 7.5, 0.4)
+	portal.Anchored = true
+	portal.CanCollide = false
+	portal.Material = Enum.Material.Neon
+	portal.Color = GreenColor
+	portal.Transparency = 0.15
+	portal.CFrame = CFrame.new(hit.Position + hit.Normal * 0.3, hit.Position + hit.Normal)
+	portal.Parent = workspace
+
+	local ring = Instance.new("Part")
+	ring.Size = Vector3.new(5.9, 7.9, 0.25)
+	ring.Anchored = true
+	ring.CanCollide = false
+	ring.Material = Enum.Material.Neon
+	ring.Color = GreenColor
+	ring.Transparency = 0.05
+	ring.CFrame = portal.CFrame
+	ring.Parent = portal
+
+	local pl = Instance.new("PointLight")
+	pl.Color = GreenColor
+	pl.Brightness = 4
+	pl.Range = 14
+	pl.Parent = portal
+
+	local pe = Instance.new("ParticleEmitter")
+	pe.Texture = "rbxassetid://241650934"
+	pe.Rate = 55
+	pe.Lifetime = NumberRange.new(0.5, 1.1)
+	pe.Speed = NumberRange.new(1.5, 4)
+	pe.Color = ColorSequence.new(GreenColor)
+	pe.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.6),
+		NumberSequenceKeypoint.new(1, 0)
+	})
+	pe.Parent = portal
+
+	PlaySound(12222208, 1.2, portal)
+
+	return portal
+end
+
+local function SetupTeleport(portal, target)
+	if not portal then return end
+	portal.Touched:Connect(function(hit)
+		local char = hit.Parent
+		if char and char:FindFirstChild("Humanoid") and char == plr.Character and target then
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			if hrp then
+				PlaySound(12222216, 1.5, hrp)
+				hrp.CFrame = target.CFrame * CFrame.new(0, 0, 3.5)
+			end
+		end
+	end)
+end
+
+local function Shoot(isFirst)
+	local char = plr.Character
+	if not char then return end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	PlaySound(12222200, 1.3, barrel)
+
+	local origin = hrp.Position + Vector3.new(0, 1.5, 0)
+	local direction = (mouse.Hit.Position - origin).Unit * 400
+
+	local rayParams = RaycastParams.new()
+	rayParams.FilterDescendantsInstances = {char, tool}
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+	local result = workspace:Raycast(origin, direction, rayParams)
+	if not result then return end
+
+	if isFirst then
+		if Portal1 then Portal1:Destroy() end
+		Portal1 = CreatePortal(result, "Portal1")
+		SetupTeleport(Portal1, Portal2)
+		if Portal2 then SetupTeleport(Portal2, Portal1) end
+	else
+		if Portal2 then Portal2:Destroy() end
+		Portal2 = CreatePortal(result, "Portal2")
+		SetupTeleport(Portal2, Portal1)
+		if Portal1 then SetupTeleport(Portal1, Portal2) end
+	end
+end
+
+tool.Activated:Connect(function()
+	Shoot(true)
+end)
+
+UserInputService.InputBegan:Connect(function(input, gp)
+	if gp then return end
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		if tool.Parent == plr.Character then
+			Shoot(false)
+		end
+	end
+end)
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "PortalGunGui"
+gui.ResetOnSpawn = false
+gui.Parent = plr:WaitForChild("PlayerGui")
+
+local secondBtn = Instance.new("TextButton")
+secondBtn.Size = UDim2.new(0, 130, 0, 50)
+secondBtn.Position = UDim2.new(1, -150, 0.68, 0)
+secondBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 60)
+secondBtn.Text = "2-й портал"
+secondBtn.TextColor3 = Color3.new(1, 1, 1)
+secondBtn.Font = Enum.Font.GothamBold
+secondBtn.TextScaled = true
+secondBtn.Parent = gui
+Instance.new("UICorner", secondBtn).CornerRadius = UDim.new(0, 10)
+
+secondBtn.MouseButton1Click:Connect(function()
+	if tool.Parent == plr.Character then
+		Shoot(false)
+	end
+end)
+
+local clearBtn = Instance.new("TextButton")
+clearBtn.Size = UDim2.new(0, 130, 0, 42)
+clearBtn.Position = UDim2.new(1, -150, 0.78, 0)
+clearBtn.BackgroundColor3 = Color3.fromRGB(160, 30, 30)
+clearBtn.Text = "Удалить"
+clearBtn.TextColor3 = Color3.new(1, 1, 1)
+clearBtn.Font = Enum.Font.GothamBold
+clearBtn.TextScaled = true
+clearBtn.Parent = gui
+Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 10)
+
+clearBtn.MouseButton1Click:Connect(function()
+	if Portal1 then Portal1:Destroy() Portal1 = nil end
+	if Portal2 then Portal2:Destroy() Portal2 = nil end
+end)
